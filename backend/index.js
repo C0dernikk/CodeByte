@@ -6,36 +6,58 @@ const { connectToDatabase } = require("./data/database");
 
 const app = express();
 
-// ---- CORS FIX FOR RENDER <-> VERCEL ----
+// ==========================
+//   GLOBAL CORS MIDDLEWARE
+// ==========================
+
+const allowedOrigins = [
+  process.env.FRONTEND_ORIGIN,        // your Vercel URL
+  "http://localhost:3000",            // for local testing
+];
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN, // e.g. https://my-frontend.vercel.app
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("CORS blocked: " + origin));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
 
-// Required for preflight (OPTIONS)
+// Fix OPTIONS preflight for all routes
 app.options("*", cors());
 
-// ---- BODY PARSERS ----
-app.use(express.urlencoded({ extended: false }));
+// ==========================
+//     BODY PARSER
+// ==========================
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// ---- ROUTES ----
+// ==========================
+//        ROUTES
+// ==========================
 app.use(runRoutes);
 
-// ---- DATABASE + SERVER ----
+// ==========================
+//  DATABASE + SERVER START
+// ==========================
 connectToDatabase()
   .then(() => {
-    console.log("Database connection established!");
-    const PORT = process.env.PORT || 5050; // Render injects PORT
-    app.listen(PORT, () =>
-      console.log(`Server running on port ${PORT}`)
-    );
+    console.log("Database connected!");
+
+    const PORT = process.env.PORT || 5050;
+    app.listen(PORT, () => console.log("Server running on port " + PORT));
   })
   .catch((error) => {
-    console.error("Database connection failed!", error?.message || error);
-    if (error?.stack) console.error(error.stack);
+    console.log("DB connection failed:", error.message || error);
+    if (error.stack) console.log(error.stack);
   });
